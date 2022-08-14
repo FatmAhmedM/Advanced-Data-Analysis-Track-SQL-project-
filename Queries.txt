@@ -1,0 +1,122 @@
+-- 1st query
+
+WITH t1
+AS (SELECT
+  c.Country Country,
+  g.Name Genre_name,
+  SUM(nl.UnitPrice * nl.Quantity) sm
+FROM Genre g
+JOIN Track t
+  ON g.GenreId = t.GenreId
+JOIN InvoiceLine nl
+  ON nl.TrackId = t.TrackId
+JOIN Invoice n
+  ON n.InvoiceId = nl.InvoiceId
+JOIN Customer c
+  ON c.CustomerId = n.CustomerId
+GROUP BY 1,
+         2),
+t2
+AS (SELECT
+  t1.Country Country,
+  MAX(t1.sm) mx
+FROM t1
+GROUP BY 1)
+SELECT
+  t1.Genre_name,
+  COUNT(*)
+FROM t1
+JOIN t2
+  ON t1.Country = t2.Country
+  AND t1.sm = t2.mx
+GROUP BY 1
+
+
+-- 2nd query
+
+WITH t1 AS
+  (SELECT nl.TrackId id,
+          sum(nl.UnitPrice * nl.Quantity) sm
+   FROM InvoiceLine nl
+   GROUP BY 1
+   ORDER BY 2 DESC),
+     t2 AS
+  (SELECT a.name,
+          a.ArtistId id,
+          sum(t1.sm)
+   FROM Track t
+   JOIN t1 
+   ON t1.id = t.TrackId
+   JOIN Album l
+   ON t.AlbumId = l.AlbumId
+   JOIN Artist a 
+   ON a.ArtistId = l.ArtistId
+   GROUP BY 1
+   ORDER BY 3 DESC
+   LIMIT 1)
+SELECT c.Country,
+       sum(nl.UnitPrice * nl.Quantity)
+FROM Album l
+JOIN t2 ON t2.id = l.ArtistId
+JOIN Track t
+ON t.AlbumId = l.AlbumId
+JOIN InvoiceLine nl 
+ON nl.TrackId = t.TrackId
+JOIN Invoice n 
+ON n.InvoiceId = nl.InvoiceId
+JOIN Customer c 
+ON c.CustomerId = n.CustomerId
+GROUP BY 1
+ORDER BY 2 DESC
+
+
+
+-- 3rd query
+
+WITH t1 AS
+  (SELECT strftime('%Y', InvoiceDate) YEAR,
+                                      a.Title Album_name,
+                                      sum(n.Total) Money_spent
+   FROM Invoice n
+   JOIN InvoiceLine nl 
+   ON nl.InvoiceId = n.InvoiceId
+   JOIN Track t 
+   ON t.TrackId = nl.TrackId
+   JOIN Album a 
+   ON a.AlbumId = t.AlbumId
+   GROUP BY 1,
+            2) ,
+     t2 AS
+  (SELECT t1.Year YEAR,
+                  max(t1.Money_spent) max_spent
+   FROM t1
+   GROUP BY 1)
+SELECT t1.Year YEAR,
+               Album_name,
+               t2.max_spent
+FROM t1
+JOIN t2 
+ON t1.Year = t2.year
+AND t1.Money_spent = t2.max_spent
+
+
+-- 4th query
+
+WITH t1 AS
+  (SELECT c.CustomerId,
+          sum(n.Total) sm
+   FROM Customer c
+   JOIN Invoice n 
+   ON n.CustomerId = c.CustomerId
+   GROUP BY 1)
+SELECT CASE
+           WHEN t1.sm >
+                  (SELECT avg(sm)
+                   FROM t1) THEN 'Higher_than_avg'
+           WHEN t1.sm <=
+                  (SELECT avg(sm)
+                   FROM t1) THEN 'Lower_orEqual_avg'
+       END AS LEVEL,
+       count(*) Number_of_customer
+FROM t1
+GROUP BY 1
